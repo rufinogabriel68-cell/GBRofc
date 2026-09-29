@@ -1,0 +1,51 @@
+/** Coleções do Firestore (companies/{companyId}/{coleção}/{id}). */
+export const COLLECTIONS = [
+  "companies",
+  "users",
+  "roles",
+  "permissions",
+  "customers",
+  "customer_addresses",
+  "customer_equipment",
+  "service_categories",
+  "services",
+  "service_materials",
+  "products",
+  "product_categories",
+  "suppliers",
+  "stock_movements",
+  "quotes",
+  "quote_items",
+  "quote_status_history",
+  "work_orders",
+  "work_order_items",
+  "work_order_status_history",
+  "work_order_messages",
+  "work_order_attachments",
+  "appointments",
+  "financial_accounts",
+  "financial_categories",
+  "financial_transactions",
+  "payments",
+  "goals",
+  "crm_leads",
+  "crm_activities",
+  "crm_tags",
+  "notes",
+  "documents",
+  "document_templates",
+  "notifications",
+  "automations",
+  "automation_logs",
+  "evaluations",
+  "warranties",
+  "audit_logs",
+  "settings",
+  "public_links",
+] as const;
+
+export type CollectionName = (typeof COLLECTIONS)[number];
+
+export function isCollection(name: string): boolean {
+  return (COLLECTIONS as readonly string[]).includes(name);
+}

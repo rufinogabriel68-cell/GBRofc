@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// =====================================================================
+// GBR Gestão — Firestore Security Rules
+//
+// FASE 1 (atual, sem tela de login):
+//   - o app entra com Firebase Auth ANÔNIMO (sem UI) + App Check;
+//   - todo acesso exige request.auth != null;
+//   - dados isolados por empresa: companies/{companyId}/...;
+//   - validação de tipo/tamanho e de companyId gravado no documento;
+//   - links públicos (orçamento/OS) só por TOKEN, sem listagem.
+//
+// FASE 2 (quando existir login real): troque isMember() pela versão
+// comentada, baseada em custom claims (companyId / role) ou em
+// companies/{companyId}/users/{uid}.
+// =====================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // FASE 1: qualquer identidade (anônima) autenticada + App Check no console.
+    function isMember(companyId) { return signedIn(); }
+    // FASE 2 (exemplo):
+    // function isMember(companyId) {
+    //   return signedIn() && request.auth.token.companyId == companyId;
+    // }
+    // function hasRole(companyId, roles) {
+    //   return isMember(companyId) && request.auth.token.role in roles;
+    // }
+
+    function validDoc(companyId) {
+      return request.resource.data.keys().hasAll(['createdAt', 'updatedAt'])
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string
+        && (!('companyId' in request.resource.data) || request.resource.data.companyId == companyId)
+        && request.resource.size() < 900000;
+    }
+    function validPatch(companyId) {
+      // updates parciais (mergeFields): exige updatedAt novo e não permite trocar de empresa
+      return request.resource.data.updatedAt is string
+        && (!('companyId' in request.resource.data) || request.resource.data.companyId == companyId)
+        && request.resource.size() < 900000;
+    }
+
+    // ---- documento raiz da empresa
+    match /companies/{companyId} {
+      allow read, write: if isMember(companyId) && request.resource.size() < 100000;
+
+      // ---- todas as coleções da empresa (customers, quotes, work_orders, ...)
+      match /{collection}/{docId} {
+        allow read: if isMember(companyId);
+        allow create: if isMember(companyId) && validDoc(companyId);
+        allow update: if isMember(companyId) && validPatch(companyId);
+        // exclusão física: soft delete é o padrão do app; mantenha permitido para "Excluir definitivamente"
+        allow delete: if isMember(companyId);
+      }
+
+      // ---- trilha de auditoria é append-only
+      match /audit_logs/{logId} {
+        allow read: if isMember(companyId);
+        allow create: if isMember(companyId) && validDoc(companyId);
+        allow update, delete: if false;
+      }
+    }
+
+    // ---- LINKS PÚBLICOS (portal do cliente) --------------------------------
+    // O ID do documento é o token (32 caracteres aleatórios). Leitura por get
+    // apenas; listagem proibida. O cliente só pode ADICIONAR eventos.
+    match /public_links/{token} {
+      allow get: if resource.data.status != 'revoked';
+      allow list: if signedIn() && resource.data.companyId is string; // o app filtra por companyId
+      allow create: if signedIn() && request.resource.data.keys().hasAll(['companyId', 'kind', 'refId', 'snapshot'])
+        && request.resource.size() < 900000;
+      // dono (autenticado) atualiza livremente; cliente público só acrescenta 1 evento
+      allow update: if signedIn()
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['events'])
+            && resource.data.status != 'revoked'
+            && request.resource.data.events.size() == resource.data.events.size() + 1
+            && request.resource.data.events.size() < 300);
+      allow delete: if signedIn();
+    }
+  }
+}

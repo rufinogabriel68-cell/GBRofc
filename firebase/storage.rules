@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// GBR Gestão — Cloud Storage Security Rules
+// Estrutura:
+//   companies/{companyId}/customers/{customerId}/...
+//   companies/{companyId}/work-orders/{workOrderId}/...
+//   companies/{companyId}/quotes/{quoteId}/...
+//   companies/{companyId}/documents/{documentId}/...
+//   public-uploads/{token}/...     (fotos/arquivos enviados pelo cliente no portal)
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function okSize(mb) { return request.resource.size < mb * 1024 * 1024; }
+
+    // FASE 1: identidade anônima + App Check. FASE 2: request.auth.token.companyId == companyId
+    match /companies/{companyId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if signedIn() && okSize(15)
+        && (request.resource == null || request.resource.contentType.matches('image/.*|application/pdf|text/plain|application/vnd.*|application/msword|video/mp4'));
+      allow delete: if signedIn();
+    }
+
+    // Uploads do cliente (portal público): somente criar; imagens e PDF até 10 MB.
+    match /public-uploads/{token}/{fileName} {
+      allow read: if signedIn();
+      allow create: if okSize(10) && request.resource.contentType.matches('image/.*|application/pdf');
+      allow update, delete: if false;
+    }
+  }
+}
