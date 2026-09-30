@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { Modal, Spinner } from "@/components/ui";
 import { useUI } from "@/components/shell/ui-context";
@@ -22,19 +22,19 @@ export default function QuoteEditor({ id, defaults, onClose }: { id: string | nu
   const customers = useActive("customers");
   const all = useCollection("quotes");
   const [s, setS] = useState<S | null>(null);
-  const init = useRef(false);
+  const [inited, setInited] = useState(false);
 
-  useEffect(() => {
-    if (init.current || !loaded) return;
-    if (id) {
-      if (!rec) return;
-      init.current = true;
+  // Inicializa o formulário assim que as configurações carregarem e o registro
+  // estiver disponível (ajuste durante a renderização, sem efeito; acontece uma única vez).
+  if (!inited && loaded) {
+    if (id && rec) {
+      setInited(true);
       setS({ customerId: rec.customerId || "", title: rec.title || "", description: rec.description || "", notes: rec.notes || "", terms: rec.terms || "", validUntil: rec.validUntil || "", deliveryDays: rec.deliveryDays || "", pricing: { ...emptyPricing(), ...(rec.pricing || {}) } });
-    } else {
-      init.current = true;
+    } else if (!id) {
+      setInited(true);
       setS({ customerId: defaults.customerId || "", title: defaults.title || "", description: "", notes: "", terms: settings.terms, validUntil: addDays(todayISO(), toNum(settings.quoteValidityDays) || 15), deliveryDays: "", pricing: { ...emptyPricing(), marginTarget: toNum(settings.defaultMargin) || 0, ...(defaults.pricing || {}) } });
     }
-  }, [id, rec, loaded, defaults, settings]);
+  }
 
   const set = (p: Partial<S>) => setS((x) => (x ? { ...x, ...p } : x));
   const waiting = !s;

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AlertTriangle, Camera, CheckCircle2, Clock, FileText, Globe, Link2Off, MessageCircle, Paperclip, Phone, Send, Star, ThumbsDown, ThumbsUp, Pencil, AtSign, Mail } from "lucide-react";
 import { fetchPublicLink, postPublicEvent, uploadPublicFile, type PublicResult } from "@/lib/data/public";
 import { compressImage, cx, dayOf, fmtDate, fmtDateTime, money, pct, todayISO, toNum } from "@/lib/utils";
@@ -7,6 +7,13 @@ import { Logo, Spinner } from "../ui";
 import type { Rec } from "@/lib/types";
 
 const STEPS = [["aberta", "Recebida"], ["agendada", "Agendada"], ["deslocamento", "A caminho"], ["execucao", "Em execução"], ["concluida", "Concluída"]] as const;
+
+/* Nome do cliente salvo no dispositivo, tratado como store externo. */
+const PORTAL_NAME_KEY = "gbr-portal-name";
+const subscribePortalName = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+};
 const stepIndex = (s: string) => { const m: Record<string, number> = { aberta: 0, agendada: 1, deslocamento: 2, execucao: 3, aguardando_material: 3, aguardando_cliente: 3, aguardando_aprovacao: 3, concluida: 4, faturada: 4 }; return m[s] ?? 0; };
 
 function SignaturePad({ onChange }: { onChange: (d: string) => void }) {
@@ -28,14 +35,18 @@ export default function PublicPortal({ token, kind }: { token: string; kind: "qu
   const [res, setRes] = useState<PublicResult | null>(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
-  const [name, setName] = useState("");
-  useEffect(() => { setName(localStorage.getItem("gbr-portal-name") || ""); }, []);
+  // Nome já conhecido disponível na primeira renderização no cliente (sem efeito de hidratação);
+  // o que o cliente digita sobrescreve o valor salvo.
+  const storedName = useSyncExternalStore(subscribePortalName, () => localStorage.getItem(PORTAL_NAME_KEY) || "", () => "");
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const name = typedName ?? storedName;
 
   const load = useCallback(async () => setRes(await fetchPublicLink(token)), [token]);
   useEffect(() => {
-    load();
+    // Primeira carga assim que o efeito roda, sem disparar renderizações em cascata.
+    const first = window.setTimeout(load, 0);
     const t = setInterval(load, kind === "work_order" ? 7000 : 15000);
-    return () => clearInterval(t);
+    return () => { window.clearTimeout(first); clearInterval(t); };
   }, [load, kind]);
 
   const send = async (ev: { type: string; text?: string; data?: Record<string, unknown> }, okMsg: string, needName = true) => {
@@ -71,7 +82,10 @@ export default function PublicPortal({ token, kind }: { token: string; kind: "qu
     <div className="min-h-dvh pb-16" style={{ ["--accent" as string]: color }}>
       <header className="border-b border-line bg-bg/70 backdrop-blur-xl sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center gap-3">
-          {co.logoUrl ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={co.logoUrl} alt={co.name} className="h-10 w-auto rounded-lg object-contain" /> : <Logo size={36} />}
+          {co.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={co.logoUrl} alt={co.name} className="h-10 w-auto rounded-lg object-contain" />
+          ) : <Logo size={36} />}
           <div className="min-w-0 flex-1"><div className="font-bold truncate">{co.name || "Empresa"}</div><div className="text-[11px] text-fg3 truncate">{kind === "quote" ? "Proposta comercial" : "Acompanhamento de serviço"} · {s.number}</div></div>
           {(co.whatsapp || co.phone) && <a className="btn btn-sm btn-primary" href={`https://wa.me/${String(co.whatsapp || co.phone).replace(/\D/g, "").replace(/^(\d{10,11})$/, "55$1")}`} target="_blank" rel="noreferrer"><MessageCircle size={14} /> <span className="hidden sm:inline">Falar com a empresa</span></a>}
         </div>
@@ -83,7 +97,7 @@ export default function PublicPortal({ token, kind }: { token: string; kind: "qu
           <h1 className="text-2xl font-extrabold tracking-tight">{s.title || (kind === "quote" ? "Seu orçamento" : "Sua ordem de serviço")}</h1>
         </div>
 
-        {kind === "quote" ? <QuoteView s={s} mine={mine} send={send} busy={busy} name={name} setName={setName} /> : <OrderView s={s} events={events} mine={mine} token={token} send={send} busy={busy} name={name} setName={setName} setToast={setToast} />}
+        {kind === "quote" ? <QuoteView s={s} mine={mine} send={send} busy={busy} name={name} setName={setTypedName} /> : <OrderView s={s} events={events} mine={mine} token={token} send={send} busy={busy} name={name} setName={setTypedName} setToast={setToast} />}
 
         <section className="card p-4 text-xs text-fg3 space-y-1">
           <div className="font-semibold text-fg2 text-sm mb-1">{co.name}</div>
@@ -213,7 +227,10 @@ function OrderView({ s, events, mine, token, send, busy, name, setName, setToast
       {((s.documents || []).length > 0 || (s.attachments || []).length > 0) && (
         <section className="card p-4"><h2 className="font-bold mb-2.5">Documentos e fotos</h2>
           <div className="space-y-1.5">{(s.documents || []).map((d: Rec, i: number) => d.url && <a key={i} href={d.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm hover:text-accent"><FileText size={15} />{d.name}</a>)}</div>
-          {(s.attachments || []).length > 0 && <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-3">{(s.attachments as Rec[]).map((a, i) => /\.(png|jpe?g|webp|gif)$/i.test(a.name || "") || a.kind !== "arquivo" ? /* eslint-disable-next-line @next/next/no-img-element */ <a key={i} href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} loading="lazy" className="aspect-square object-cover rounded-xl border border-line" /></a> : <a key={i} href={a.url} target="_blank" rel="noreferrer" className="aspect-square grid place-items-center rounded-xl bg-solid2 text-xs p-2 text-center"><Paperclip size={18} />{a.name}</a>)}</div>}
+          {(s.attachments || []).length > 0 && <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-3">{(s.attachments as Rec[]).map((a, i) => /\.(png|jpe?g|webp|gif)$/i.test(a.name || "") || a.kind !== "arquivo" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <a key={i} href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} loading="lazy" className="aspect-square object-cover rounded-xl border border-line" /></a>
+          ) : <a key={i} href={a.url} target="_blank" rel="noreferrer" className="aspect-square grid place-items-center rounded-xl bg-solid2 text-xs p-2 text-center"><Paperclip size={18} />{a.name}</a>)}</div>}
         </section>
       )}
 

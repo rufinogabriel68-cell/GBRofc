@@ -10,7 +10,6 @@
  *
  * Mantida em JavaScript para não interferir no build do Next.js.
  */
-/* eslint-disable */
 // const { onSchedule } = require("firebase-functions/v2/scheduler");
 // const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 // const admin = require("firebase-admin");

@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -75,10 +76,12 @@ function useLock(open: boolean) {
   }, [open]);
 }
 
+/** Nenhuma notificação: o snapshot só muda de `false` (servidor) para `true` (cliente). */
+const subscribeNone = () => () => {};
+
 function usePortal() {
-  const [m, setM] = useState(false);
-  useEffect(() => setM(true), []);
-  return m;
+  // Evita mismatch de hidratação: renderiza no servidor, monta no cliente via store externo.
+  return useSyncExternalStore(subscribeNone, () => true, () => false);
 }
 
 /* ------------------------------------------------------------------ Modal / Drawer */

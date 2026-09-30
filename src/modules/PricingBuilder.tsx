@@ -13,12 +13,15 @@ const TIER_OPTS: { id: Tier; label: string }[] = [
   { id: "economico", label: "Econômico" }, { id: "medio", label: "Médio" }, { id: "premium", label: "Premium" }, { id: "custom", label: "Manual" },
 ];
 
-export function PricingSummary({ t, pricing, compact }: { t: Totals; pricing: Pricing; compact?: boolean }) {
-  const Row = ({ k, v, tone, strong }: { k: string; v: string; tone?: string; strong?: boolean }) => (
+function Row({ k, v, tone, strong }: { k: string; v: string; tone?: string; strong?: boolean }) {
+  return (
     <div className={cx("flex justify-between gap-3 py-1 text-[13px]", strong && "font-bold text-[15px]")}>
       <span className={strong ? "" : "text-fg2"}>{k}</span><span className={cx("tabular-nums", tone)}>{v}</span>
     </div>
   );
+}
+
+export function PricingSummary({ t, pricing, compact }: { t: Totals; pricing: Pricing; compact?: boolean }) {
   return (
     <div className={cx("card p-4", !compact && "border-accent/25")} aria-live="polite">
       <div className="text-[11px] font-bold uppercase tracking-wider text-accent mb-2">Resumo do preço</div>

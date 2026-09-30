@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Cpu, ListTodo, Plus, Repeat, ShieldCheck, Star, UserCheck, Users, Workflow, MoveRight, UserPlus, MoreHorizontal } from "lucide-react";
 import { CrudView } from "@/components/crud/CrudView";
 import { Empty, Menu, PageHeader, Tabs, Badge } from "@/components/ui";
@@ -18,7 +18,12 @@ type Tab = "pipeline" | "clientes" | "tarefas" | "recorrentes" | "equipamentos" 
 export default function CrmPage() {
   const [tab, setTab] = useState<Tab>("pipeline");
   const [param] = useQueryParam("tab");
-  useEffect(() => { if (param && ["pipeline", "clientes", "tarefas", "recorrentes", "equipamentos", "garantias", "avaliacoes"].includes(param)) setTab(param as Tab); }, [param]);
+  // Aplica ?tab= quando o parâmetro chega (ajuste durante a renderização, sem efeito).
+  const [appliedParam, setAppliedParam] = useState<string | null>(null);
+  if (param && param !== appliedParam) {
+    setAppliedParam(param);
+    if (["pipeline", "clientes", "tarefas", "recorrentes", "equipamentos", "garantias", "avaliacoes"].includes(param)) setTab(param as Tab);
+  }
   const ui = useUI();
   return (
     <>

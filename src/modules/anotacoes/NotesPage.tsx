@@ -22,8 +22,19 @@ export default function NotesPage() {
   const [open, clearOpen] = useQueryParam("open");
 
   const create = () => { const n = db.create("notes", { title: "", body: "", checklist: [], tags: [], pinned: false }); setSel(n.id); };
-  useEffect(() => { if (isNew) { create(); clearNew(); } }, [isNew]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (open) { setSel(open); clearOpen(); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isNew) return;
+    // Cria a nota um tick depois de o parâmetro chegar e limpa a URL.
+    const t = window.setTimeout(() => { create(); clearNew(); }, 0);
+    return () => window.clearTimeout(t);
+  }, [isNew]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Seleciona a nota de ?open= quando o parâmetro chega (ajuste durante a renderização).
+  const [consumedOpen, setConsumedOpen] = useState("");
+  if (open && open !== consumedOpen) {
+    setConsumedOpen(open);
+    setSel(open);
+  }
+  useEffect(() => { if (open && open === consumedOpen) clearOpen(); }, [open, consumedOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tags = useMemo(() => [...new Set(items.filter((n) => !n.deletedAt).flatMap((n) => n.tags || []))], [items]);
   const list = useMemo(() => items.filter((n) => !n.deletedAt && !!n.archived === showArch && (!tag || (n.tags || []).includes(tag)) && (!q || norm([n.title, n.body, (n.tags || []).join(" "), (n.checklist || []).map((c: Rec) => c.text).join(" ")].join(" ")).includes(norm(q))))

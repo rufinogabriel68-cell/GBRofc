@@ -1,5 +1,5 @@
 /* GBR Gestão — service worker (PWA): cache do shell e fallback offline. Dados ficam no Firestore/servidor. */
-const CACHE = "gbr-shell-v1";
+const CACHE = "gbr-shell-v3";
 const PRECACHE = ["/offline.html", "/icons/icon-192.png", "/icons/icon.svg"];
 
 self.addEventListener("install", (e) => {
@@ -26,9 +26,16 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-          return res;
+          // Só confia/responde com a MESMA origem. Redirecionamentos para fora
+          // (ex.: Deployment Protection do Vercel → vercel.com/sso-api) nunca
+          // devem ser renderizados nem guardados como página do app.
+          const sameOrigin = new URL(res.url).origin === self.location.origin;
+          if (res.ok && sameOrigin) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+            return res;
+          }
+          throw new Error("resposta de origem externa ou inválida");
         })
         .catch(() => caches.match(req).then((r) => r || caches.match("/offline.html"))),
     );

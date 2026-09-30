@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { Archive, ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Copy, Pencil, Plus, RotateCcw, Star, Trash2, ArchiveRestore, Eye } from "lucide-react";
 import { db, useActive, useCollection } from "@/lib/data/store";
 import { norm, cx } from "@/lib/utils";
@@ -114,7 +114,14 @@ export function CrudView({
     });
   }, [scoped, q, view, filters, statusFilter, sort, config]);
 
-  useEffect(() => setPage(0), [q, view, filters, statusFilter]);
+  // Volta para a primeira página quando busca/visualização/filtros mudam
+  // (ajuste durante a renderização, sem efeito).
+  const resetKey = `${q}\u0000${view}\u0000${statusFilter}\u0000${JSON.stringify(filters)}`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
+    setPage(0);
+  }
   const pages = Math.max(1, Math.ceil(rows.length / pageSize));
   const pageRows = rows.slice(page * pageSize, page * pageSize + pageSize);
   const visibleCols = config.columns.filter((c) => !hidden.has(c.key));

@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import {
   Boxes, CalendarDays, Calculator, ClipboardList, CornerDownLeft, FileText, FolderOpen, Search, StickyNote, UserPlus, Users, Wallet, Wrench, Zap, Settings, BarChart3, Target, Sparkles,
 } from "lucide-react";
@@ -17,9 +17,11 @@ const ALIASES: Record<string, string> = {
   produto: "products", produtos: "products", documento: "documents", documentos: "documents", nota: "notes", anotacao: "notes", lancamento: "financial_transactions", transacao: "financial_transactions",
 };
 
+/** Nenhuma notificação: o snapshot só muda de `false` (servidor) para `true` (cliente). */
+const subscribeNone = () => () => {};
+
 export function CommandCenter({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(subscribeNone, () => true, () => false);
   if (!open || !mounted) return null;
   return createPortal(<Palette onClose={onClose} />, document.body);
 }
@@ -112,7 +114,12 @@ function Palette({ onClose }: { onClose: () => void }) {
     return [...acts.sort((a, b) => score(a) - score(b)).slice(0, 6), ...recs.sort((a, b) => score(a) - score(b)).slice(0, 24)];
   }, [q, actions, records]);
 
-  useEffect(() => setIdx(0), [q]);
+  // Reinicia o destaque quando a busca muda (ajuste durante a renderização, sem efeito).
+  const [prevQ, setPrevQ] = useState(q);
+  if (q !== prevQ) {
+    setPrevQ(q);
+    setIdx(0);
+  }
   useEffect(() => { listRef.current?.querySelector(`[data-i="${idx}"]`)?.scrollIntoView({ block: "nearest" }); }, [idx]);
 
   const onKey = (e: React.KeyboardEvent) => {

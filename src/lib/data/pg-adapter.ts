@@ -33,6 +33,9 @@ export function createPgAdapter(): Adapter {
   let flushing = false;
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Coleções que já tiveram a primeira pintura (sucesso, cache ou falha). */
+  const painted = new Set<string>();
+  let erroredOnce = false;
 
   try {
     outbox = JSON.parse(localStorage.getItem(OUTBOX_KEY) || "[]");
@@ -89,7 +92,10 @@ export function createPgAdapter(): Adapter {
       const cols: Record<string, string | null> = {};
       subs.forEach((_, c) => (cols[c] = since.get(c) ?? null));
       const res = await fetch("/api/sync", { method: "POST", headers: HEADERS, body: JSON.stringify({ cols }) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(j?.error || `HTTP ${res.status}`);
+      }
       const j = (await res.json()) as {
         serverTime: string;
         results: Record<string, { docs: Rec[]; deletedIds: string[] }>;
@@ -106,11 +112,24 @@ export function createPgAdapter(): Adapter {
         since.set(c, next);
         const o = overlay(c, r.docs, r.deletedIds);
         subs.get(c)?.forEach((h) => h({ upserts: o.docs, removed: o.removed, replaceAll: full }));
+        painted.add(c);
       }
       setSync({ online: true, error: null, lastSync: Date.now() });
     } catch (e) {
       const offline = !navigator.onLine || e instanceof TypeError;
       setSync(offline ? { online: false } : { error: String(e) });
+      // Primeira pintura offline-first: mesmo sem servidor, conclui o carregamento
+      // das coleções com lista vazia — a UI renderiza (ex.: aba Empresa) e o status
+      // de sincronização mostra o erro, em vez de uma tela eternamente em branco.
+      subs.forEach((set, col) => {
+        if (painted.has(col)) return;
+        painted.add(col);
+        set.forEach((h) => h({ upserts: [], removed: [] }));
+      });
+      if (!offline && !erroredOnce) {
+        erroredOnce = true;
+        toastError(`Servidor de dados indisponível (${String(e)}). Verifique o backend no .env (NEXT_PUBLIC_FIREBASE_* ou DATABASE_URL) e reinicie o servidor.`);
+      }
     } finally {
       polling = false;
       schedule();
@@ -183,6 +202,7 @@ export function createPgAdapter(): Adapter {
             const arr = JSON.parse(raw) as Rec[];
             const o = overlay(col, arr, []);
             handler({ upserts: o.docs, removed: o.removed });
+            painted.add(col);
           }
         } catch {}
       }

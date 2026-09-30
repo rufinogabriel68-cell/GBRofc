@@ -44,7 +44,12 @@ const SECTIONS: Partial<Record<Tab, Field[]>> = {
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("empresa");
   const [param] = useQueryParam("tab");
-  useEffect(() => { if (param && TABS.some((t) => t.id === param)) setTab(param as Tab); }, [param]);
+  // Aplica ?tab= quando o parâmetro chega (ajuste durante a renderização, sem efeito).
+  const [appliedParam, setAppliedParam] = useState<string | null>(null);
+  if (param && param !== appliedParam) {
+    setAppliedParam(param);
+    if (TABS.some((t) => t.id === param)) setTab(param as Tab);
+  }
   return (
     <>
       <PageHeader title="Configurações" subtitle="Empresa, identidade, taxas, regras de negócio, usuários, backup e integrações." />
@@ -174,24 +179,27 @@ function Backup() {
   );
 }
 
+function IntegrationItem({ icon: I, title, status, children }: { icon: typeof Cloud; title: string; status: ReactNode; children: ReactNode }) {
+  return <div className="card p-4"><div className="flex items-center gap-2.5 mb-1.5"><span className="size-8 rounded-xl bg-accent/12 text-accent grid place-items-center"><I size={16} /></span><b className="text-sm flex-1">{title}</b>{status}</div><div className="text-xs text-fg2 leading-relaxed">{children}</div></div>;
+}
+
 function Integrations() {
   const s = useSyncStatus();
   const [ai, setAi] = useState<boolean | null>(null);
   useEffect(() => { fetch("/api/ai").then((r) => r.json()).then((j) => setAi(!!j.configured)).catch(() => setAi(false)); }, []);
-  const Item = ({ icon: I, title, status, children }: { icon: typeof Cloud; title: string; status: ReactNode; children: ReactNode }) => <div className="card p-4"><div className="flex items-center gap-2.5 mb-1.5"><span className="size-8 rounded-xl bg-accent/12 text-accent grid place-items-center"><I size={16} /></span><b className="text-sm flex-1">{title}</b>{status}</div><div className="text-xs text-fg2 leading-relaxed">{children}</div></div>;
   const off = <Badge>não configurado</Badge>;
   return (
     <div className="grid md:grid-cols-2 gap-3">
-      <Item icon={Cloud} title="Firebase (Firestore + Storage)" status={isFirebaseConfigured ? <Badge tone="ok">● ativo</Badge> : <Badge tone="warn">não configurado</Badge>}>
+      <IntegrationItem icon={Cloud} title="Firebase (Firestore + Storage)" status={isFirebaseConfigured ? <Badge tone="ok">● ativo</Badge> : <Badge tone="warn">não configurado</Badge>}>
         {isFirebaseConfigured ? <>Projeto <b>{firebaseConfig.projectId}</b>. Dados em <code className="kbd">companies/{COMPANY_ID}/…</code>, arquivos no Storage, cache offline persistente. App Check: {process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY ? "ativo" : "defina NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY"}.</> : <>Rodando no <b>modo servidor (PostgreSQL)</b> com o mesmo modelo de coleções. Para ativar o Firebase defina <code className="kbd">NEXT_PUBLIC_FIREBASE_*</code> (ver .env.example), publique <code className="kbd">firebase/firestore.rules</code> e <code className="kbd">storage.rules</code>. Estado atual: {s.mode}.</>}
-      </Item>
-      <Item icon={ShieldCheck} title="App Check / Security Rules" status={<Badge tone={isFirebaseConfigured ? "info" : "neutral"}>{isFirebaseConfigured ? "regras no projeto" : "preparado"}</Badge>}>Regras validam dados, isolam por empresa e liberam links públicos apenas por token. Autenticação anônima hoje; Firebase Auth completo depois.</Item>
-      <Item icon={Workflow} title="WhatsApp Business API" status={off}>Interface <code className="kbd">WhatsAppProvider</code> pronta. Hoje: links wa.me com mensagem do modelo.</Item>
-      <Item icon={CalendarDays} title="Google / Apple / Outlook Calendar" status={<Badge tone="info">.ics disponível</Badge>}>Exportação .ics funcional na Agenda. Sincronização bidirecional: futura (OAuth em Cloud Function).</Item>
-      <Item icon={Landmark} title="Open Finance / bancos" status={off}>Conciliação por CSV disponível. Conectores automáticos entram pelo mesmo fluxo em `financial_transactions`.</Item>
-      <Item icon={Database} title="Google Maps / rotas" status={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ? <Badge tone="ok">chave definida</Badge> : off}>Abrir rota no Maps/Waze funciona. Distância e tempo automáticos requerem <code className="kbd">NEXT_PUBLIC_GOOGLE_MAPS_KEY</code> + Distance Matrix (etapa futura).</Item>
-      <Item icon={Blocks} title="Google Business Profile" status={off}>Avaliações internas já são registradas; importação/solicitação pública: futura.</Item>
-      <Item icon={Zap} title="Inteligência artificial" status={ai === null ? <Badge>verificando</Badge> : ai ? <Badge tone="ok">● ativa</Badge> : off}>Rota <code className="kbd">/api/ai</code> pronta (OpenAI-compatível). Sem chave = desativada; nada é simulado.</Item>
+      </IntegrationItem>
+      <IntegrationItem icon={ShieldCheck} title="App Check / Security Rules" status={<Badge tone={isFirebaseConfigured ? "info" : "neutral"}>{isFirebaseConfigured ? "regras no projeto" : "preparado"}</Badge>}>Regras validam dados, isolam por empresa e liberam links públicos apenas por token. Autenticação anônima hoje; Firebase Auth completo depois.</IntegrationItem>
+      <IntegrationItem icon={Workflow} title="WhatsApp Business API" status={off}>Interface <code className="kbd">WhatsAppProvider</code> pronta. Hoje: links wa.me com mensagem do modelo.</IntegrationItem>
+      <IntegrationItem icon={CalendarDays} title="Google / Apple / Outlook Calendar" status={<Badge tone="info">.ics disponível</Badge>}>Exportação .ics funcional na Agenda. Sincronização bidirecional: futura (OAuth em Cloud Function).</IntegrationItem>
+      <IntegrationItem icon={Landmark} title="Open Finance / bancos" status={off}>Conciliação por CSV disponível. Conectores automáticos entram pelo mesmo fluxo em `financial_transactions`.</IntegrationItem>
+      <IntegrationItem icon={Database} title="Google Maps / rotas" status={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ? <Badge tone="ok">chave definida</Badge> : off}>Abrir rota no Maps/Waze funciona. Distância e tempo automáticos requerem <code className="kbd">NEXT_PUBLIC_GOOGLE_MAPS_KEY</code> + Distance Matrix (etapa futura).</IntegrationItem>
+      <IntegrationItem icon={Blocks} title="Google Business Profile" status={off}>Avaliações internas já são registradas; importação/solicitação pública: futura.</IntegrationItem>
+      <IntegrationItem icon={Zap} title="Inteligência artificial" status={ai === null ? <Badge>verificando</Badge> : ai ? <Badge tone="ok">● ativa</Badge> : off}>Rota <code className="kbd">/api/ai</code> pronta (OpenAI-compatível). Sem chave = desativada; nada é simulado.</IntegrationItem>
     </div>
   );
 }

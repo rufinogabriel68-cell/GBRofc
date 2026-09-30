@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { cx } from "@/lib/utils";
 
 function useWidth() {
@@ -45,7 +45,7 @@ export function Chart({ kind = "area", data, series, height = 220, format = (v: 
   const bx = (i: number) => padL + bandW * i + bandW / 2;
   const step = Math.ceil(n / Math.max(2, Math.floor(iw / 62)));
   const ticks = [0, 1, 2, 3, 4].map((t) => min + (range * t) / 4);
-  const gid = useRef("g" + Math.random().toString(36).slice(2, 7)).current;
+  const gid = useId();
 
   const path = (s: Series) => data.map((d, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(Number(d[s.key]) || 0).toFixed(1)}`).join(" ");
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {

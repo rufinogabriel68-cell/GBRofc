@@ -1,7 +1,7 @@
 "use client";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { cx } from "@/lib/utils";
 import { useSettings } from "@/lib/settings";
 import { ConfirmHost, ToastHost } from "../ui";
@@ -20,6 +20,18 @@ function lum(hex: string) {
   const [r, g, b] = m.map((x) => parseInt(x, 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
+
+/* Sidebar recolhida: estado persistido em localStorage tratado como store externo. */
+const SIDEBAR_EVENT = "gbr:sidebar";
+const subscribeSidebar = (cb: () => void) => {
+  window.addEventListener("storage", cb);
+  window.addEventListener(SIDEBAR_EVENT, cb);
+  return () => {
+    window.removeEventListener("storage", cb);
+    window.removeEventListener(SIDEBAR_EVENT, cb);
+  };
+};
+const sidebarCollapsed = () => localStorage.getItem("gbr-sidebar") === "1";
 
 function ThemeApplier() {
   const { settings, loaded } = useSettings();
@@ -55,7 +67,7 @@ function ThemeApplier() {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
-  const [collapsed, setCollapsedState] = useState(false);
+  const collapsed = useSyncExternalStore(subscribeSidebar, sidebarCollapsed, () => false);
   const [form, setForm] = useState<{ col: string; id: string | null; defaults: Record<string, any> } | null>(null);
   const [detail, setDetail] = useState<{ col: string; id: string } | null>(null);
   const [cmd, setCmd] = useState(false);
@@ -63,14 +75,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [watch, setWatch] = useState(false);
 
   useEffect(() => {
-    setCollapsedState(localStorage.getItem("gbr-sidebar") === "1");
     const t = setTimeout(() => setWatch(true), 1500);
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") navigator.serviceWorker.register("/sw.js").catch(() => {});
     return () => clearTimeout(t);
   }, []);
   const setCollapsed = (v: boolean) => {
-    setCollapsedState(v);
     localStorage.setItem("gbr-sidebar", v ? "1" : "0");
+    window.dispatchEvent(new Event(SIDEBAR_EVENT));
   };
 
   useEffect(() => {
@@ -83,10 +94,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", h);
   }, []);
 
-  useEffect(() => {
+  // Fecha formulário e detalhe abertos ao navegar (ajuste durante a renderização, sem efeito).
+  const [prevPath, setPrevPath] = useState(path);
+  if (path !== prevPath) {
+    setPrevPath(path);
     setForm(null);
     setDetail(null);
-  }, [path]);
+  }
 
   const api: UIApi = useMemo(
     () => ({

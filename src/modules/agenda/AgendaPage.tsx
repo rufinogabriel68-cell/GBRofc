@@ -25,7 +25,12 @@ export default function AgendaPage() {
   const [cur, setCur] = useState(todayISO());
   const [isNew, clear] = useQueryParam("new");
   useEffect(() => { if (isNew) { ui.openForm("appointments"); clear(); } }, [isNew]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (mobile && view === "semana") setView("dia"); }, [mobile]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Em telas pequenas, cai da visão "semana" para "dia" (ajuste durante a renderização, sem efeito).
+  const [wasMobile, setWasMobile] = useState(mobile);
+  if (mobile !== wasMobile) {
+    setWasMobile(mobile);
+    if (mobile && view === "semana") setView("dia");
+  }
 
   const cname = (id: string) => customers.items.find((c) => c.id === id)?.name || "";
   const byDay = useMemo(() => {
@@ -64,8 +69,6 @@ export default function AgendaPage() {
     download("agenda-gbr.ics", ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//GBR Gestao//PT-BR", ...ev, "END:VCALENDAR"].join("\r\n"), "text/calendar;charset=utf-8");
   };
 
-  const DayList = ({ date, full }: { date: string; full?: boolean }) => <div className="space-y-1">{(byDay.get(date) || []).map((a) => <Chip key={a.id} a={a} full={full} />)}</div>;
-
   return (
     <>
       <PageHeader title="Agenda" subtitle="Atendimentos, visitas, instalações e compromissos ligados a clientes e OS."
@@ -89,7 +92,7 @@ export default function AgendaPage() {
               </div>
             );
           })}
-          {(byDay.get(cur) || []).filter((a) => !a.startTime).length > 0 && <div className="border-t border-line p-3"><div className="text-[11px] font-bold uppercase text-fg3 mb-1">Dia inteiro / sem horário</div><DayList date={cur} full /></div>}
+          {(byDay.get(cur) || []).filter((a) => !a.startTime).length > 0 && <div className="border-t border-line p-3"><div className="text-[11px] font-bold uppercase text-fg3 mb-1">Dia inteiro / sem horário</div><div className="space-y-1">{(byDay.get(cur) || []).map((a) => <Chip key={a.id} a={a} full />)}</div></div>}
         </div>
       )}
 
@@ -98,7 +101,7 @@ export default function AgendaPage() {
           {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => (
             <div key={day} className={cx("card p-2 min-h-[340px] cursor-pointer", day === todayISO() && "border-accent/50")} onClick={() => ui.openForm("appointments", null, { date: day })}>
               <button className="w-full text-left mb-2" onClick={(e) => { e.stopPropagation(); setCur(day); setView("dia"); }}><div className="text-[11px] text-fg3 uppercase font-bold">{WEEKDAYS[parseDay(day).getDay()]}</div><div className={cx("text-lg font-bold", day === todayISO() && "text-accent")}>{day.slice(8)}</div></button>
-              <DayList date={day} />
+              <div className="space-y-1">{(byDay.get(day) || []).map((a) => <Chip key={a.id} a={a} />)}</div>
             </div>
           ))}
         </div>
