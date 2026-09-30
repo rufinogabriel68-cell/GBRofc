@@ -282,7 +282,10 @@ export function FilesTab({ o }: { o: Rec }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {list.map((a) => (
             <div key={a.id} className="card overflow-hidden group relative">
-              {a.type?.startsWith("image/") ? /* eslint-disable-next-line @next/next/no-img-element */ <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} className="w-full aspect-square object-cover" loading="lazy" /></a> : <a href={a.url} target="_blank" rel="noreferrer" className="aspect-square grid place-items-center bg-solid2"><Paperclip size={26} className="text-fg3" /></a>}
+              {a.type?.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} className="w-full aspect-square object-cover" loading="lazy" /></a>
+              ) : <a href={a.url} target="_blank" rel="noreferrer" className="aspect-square grid place-items-center bg-solid2"><Paperclip size={26} className="text-fg3" /></a>}
               <div className="p-2 text-[11px]"><div className="truncate font-medium">{a.name}</div><div className="flex items-center gap-1 mt-0.5"><Badge tone={a.kind === "cliente" ? "violet" : "info"}>{a.kind}</Badge>
                 <button className="ml-auto text-fg3 hover:text-bad" aria-label="Excluir arquivo" onClick={async () => { if (await confirmDialog({ title: "Excluir arquivo?", confirmText: "Excluir", danger: true })) { db.removeFile({ path: a.path, url: a.url }); db.remove("work_order_attachments", a.id); } }}><Trash2 size={13} /></button></div></div>
             </div>

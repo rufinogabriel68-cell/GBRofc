@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { Field, Modal, Spinner } from "@/components/ui";
 import { useUI } from "@/components/shell/ui-context";
@@ -21,20 +21,20 @@ export default function OrderEditor({ id, defaults, onClose }: { id: string | nu
   const users = useActive("users");
   const all = useCollection("work_orders");
   const [s, setS] = useState<Record<string, any> | null>(null);
-  const init = useRef(false);
+  const [inited, setInited] = useState(false);
 
-  useEffect(() => {
-    if (init.current || !loaded) return;
-    if (id) {
-      if (!rec) return;
-      init.current = true;
+  // Inicializa o formulário assim que as configurações carregarem e o registro
+  // estiver disponível (ajuste durante a renderização, sem efeito; acontece uma única vez).
+  if (!inited && loaded) {
+    if (id && rec) {
+      setInited(true);
       setS({ ...rec, pricing: { ...emptyPricing(), ...(rec.pricing || {}) } });
-    } else {
-      init.current = true;
+    } else if (!id) {
+      setInited(true);
       const cust = defaults.customerId ? db.get("customers", defaults.customerId) : undefined;
       setS({ customerId: "", title: "", description: "", problem: "", notes: "", address: cust ? customerAddress(cust) : "", technician: settings.responsible || "", date: "", time: "", status: "aberta", warrantyDays: settings.warrantyDays, nextMaintenanceMonths: settings.nextMaintenanceMonths, ...defaults, pricing: { ...emptyPricing(), ...(defaults.pricing || {}) } });
     }
-  }, [id, rec, loaded, defaults, settings]);
+  }
 
   const set = (p: Record<string, any>) => setS((x) => (x ? { ...x, ...p } : x));
   const pickCustomer = (cid: string) => {

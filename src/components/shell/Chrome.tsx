@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle, Bell, CalendarDays, Calculator, ChevronsLeft, ChevronsRight, ClipboardList, Cloud, CloudOff, FileText, LayoutDashboard, Loader2, MoreHorizontal, Monitor, Moon, Plus, Search, Settings, StickyNote, Sun, UserPlus, Wallet, Wrench, CalendarPlus,
 } from "lucide-react";
@@ -14,6 +14,9 @@ import { Logo, Modal } from "../ui";
 import { useUI } from "./ui-context";
 
 export const VERSION = "1.0.0";
+
+/** Nenhuma notificação: usado com snapshots constantes via useSyncExternalStore. */
+const subscribeNone = () => () => {};
 
 /* ------------------------------------------------------------------ sync */
 export function SyncPill({ compact }: { compact?: boolean }) {
@@ -91,8 +94,11 @@ export function Header() {
   const { items } = useActive("notifications");
   const unread = items.filter((n) => !n.read).length;
   const { settings, save } = useSettings();
-  const [mac, setMac] = useState(true);
-  useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform)), []);
+  const isMac = useSyncExternalStore(
+    subscribeNone,
+    () => /Mac|iPhone|iPad/.test(navigator.platform),
+    () => true,
+  );
 
   const cycle = () => {
     const next = settings.theme === "dark" ? "light" : settings.theme === "light" ? "auto" : "dark";
@@ -111,7 +117,7 @@ export function Header() {
         </div>
         <button onClick={ui.openCommand} className="hidden md:flex items-center gap-2 h-9 px-3 w-[280px] rounded-xl bg-solid2/80 border border-line text-fg3 text-[13px] hover:border-line2 transition" aria-label="Buscar ou executar comando">
           <Search size={15} /> <span className="flex-1 text-left">Buscar ou executar comando…</span>
-          <span className="kbd">{mac ? "⌘" : "Ctrl"} K</span>
+          <span className="kbd">{isMac ? "⌘" : "Ctrl"} K</span>
         </button>
         <button onClick={ui.openCommand} className="md:hidden btn btn-icon btn-ghost" aria-label="Buscar"><Search size={18} /></button>
         <SyncPill compact />
@@ -156,29 +162,35 @@ export function Dock() {
 }
 
 /* ------------------------------------------------------------------ mobile nav */
+function Tab({ href, label, icon: I, path }: { href: string; label: string; icon: typeof Wrench; path: string }) {
+  const on = href === "/" ? path === "/" : path.startsWith(href);
+  return (
+    <Link href={href} className={cx("flex flex-col items-center gap-0.5 flex-1 py-1.5 text-[10.5px] font-semibold", on ? "text-accent" : "text-fg3")} aria-current={on ? "page" : undefined}>
+      <I size={21} />{label}
+    </Link>
+  );
+}
+
 export function MobileNav() {
   const path = usePathname();
   const ui = useUI();
   const [more, setMore] = useState(false);
-  useEffect(() => setMore(false), [path]);
-  const Tab = ({ href, label, icon: I }: { href: string; label: string; icon: typeof Wrench }) => {
-    const on = href === "/" ? path === "/" : path.startsWith(href);
-    return (
-      <Link href={href} className={cx("flex flex-col items-center gap-0.5 flex-1 py-1.5 text-[10.5px] font-semibold", on ? "text-accent" : "text-fg3")} aria-current={on ? "page" : undefined}>
-        <I size={21} />{label}
-      </Link>
-    );
-  };
+  // Fecha o menu "Mais" ao navegar (ajuste durante a renderização, sem efeito).
+  const [prevPath, setPrevPath] = useState(path);
+  if (path !== prevPath) {
+    setPrevPath(path);
+    setMore(false);
+  }
   return (
     <>
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 glass border-x-0 border-b-0 rounded-t-3xl pb-safe" aria-label="Navegação">
         <div className="flex items-end px-2 pt-1">
-          <Tab href="/" label="Início" icon={LayoutDashboard} />
-          <Tab href="/ordens-de-servico" label="OS" icon={ClipboardList} />
+          <Tab href="/" label="Início" icon={LayoutDashboard} path={path} />
+          <Tab href="/ordens-de-servico" label="OS" icon={ClipboardList} path={path} />
           <div className="flex-1 flex justify-center -mt-6">
             <button onClick={ui.openQuick} aria-label="Ação rápida" className="size-14 rounded-full btn-primary grid place-items-center shadow-xl border-4 border-bg active:scale-95 transition"><Plus size={26} /></button>
           </div>
-          <Tab href="/agenda" label="Agenda" icon={CalendarPlus} />
+          <Tab href="/agenda" label="Agenda" icon={CalendarPlus} path={path} />
           <button onClick={() => setMore(true)} className="flex flex-col items-center gap-0.5 flex-1 py-1.5 text-[10.5px] font-semibold text-fg3"><MoreHorizontal size={21} />Mais</button>
         </div>
       </nav>

@@ -62,7 +62,10 @@ export default function DocumentosPage() {
     { label: "Excluir (lixeira)", icon: Trash2, danger: true, onClick: async () => { if (await confirmDialog({ title: "Mover para a lixeira?", confirmText: "Excluir", danger: true })) db.softDelete("documents", d.id); } },
   ];
 
-  const Icon = ({ d, big }: { d: Rec; big?: boolean }) => (d.file?.type?.startsWith("image/") && d.file?.url && big ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={d.file.url} alt={d.title} loading="lazy" className="w-full h-full object-cover" /> : d.type === "foto" ? <FileImage size={big ? 34 : 18} className="text-fg3" /> : d.kind === "file" ? <FileIcon size={big ? 34 : 18} className="text-fg3" /> : <FileText size={big ? 34 : 18} className="text-accent" />);
+  const Icon = ({ d, big }: { d: Rec; big?: boolean }) => (d.file?.type?.startsWith("image/") && d.file?.url && big ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={d.file.url} alt={d.title} loading="lazy" className="w-full h-full object-cover" />
+  ) : d.type === "foto" ? <FileImage size={big ? 34 : 18} className="text-fg3" /> : d.kind === "file" ? <FileIcon size={big ? 34 : 18} className="text-fg3" /> : <FileText size={big ? 34 : 18} className="text-accent" />);
 
   return (
     <>
@@ -155,7 +158,13 @@ function DocForm({ type: t0, id, onClose, onPdf }: { type: string; id?: string; 
           {ta("problem", "Problema")}{ta("diagnosis", "Diagnóstico")}{ta("tests", "Testes realizados")}{ta("result", "Resultado")}{ta("recommendation", "Recomendação")}{ta("notes", "Observações", 2)}
           <Field label="Responsável"><input className="input" value={c.responsible || ""} onChange={(e) => setC("responsible", e.target.value)} /></Field>
           <Field label="Fotos do laudo" className="sm:col-span-2">
-            <div className="flex flex-wrap gap-2">{f.photos.map((p: Rec, i: number) => <div key={i} className="relative size-16 rounded-xl overflow-hidden border border-line2">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={p.url} alt="" className="size-full object-cover" /><button className="absolute top-0.5 right-0.5 size-5 rounded-full bg-black/60 text-white text-xs" aria-label="Remover foto" onClick={() => set("photos", f.photos.filter((_: Rec, j: number) => j !== i))}>×</button></div>)}
+            <div className="flex flex-wrap gap-2">{f.photos.map((p: Rec, i: number) => (
+              <div key={i} className="relative size-16 rounded-xl overflow-hidden border border-line2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt="" className="size-full object-cover" />
+                <button className="absolute top-0.5 right-0.5 size-5 rounded-full bg-black/60 text-white text-xs" aria-label="Remover foto" onClick={() => set("photos", f.photos.filter((_: Rec, j: number) => j !== i))}>×</button>
+              </div>
+            ))}
               <ImageUpload url="" folder={`documents/laudos`} label="Foto" onChange={(v) => v && set("photos", [...f.photos, { url: v.url, path: v.path }])} /></div>
             {busy && <span className="text-xs text-fg3">Enviando…</span>}
           </Field>

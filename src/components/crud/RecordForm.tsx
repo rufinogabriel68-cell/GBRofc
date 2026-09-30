@@ -61,7 +61,10 @@ export function ImageUpload({ url, onChange, folder, label = "Imagem", round }: 
   return (
     <div className="flex items-center gap-3">
       <div className={cx("size-16 border border-line2 bg-solid2 grid place-items-center overflow-hidden shrink-0", round ? "rounded-full" : "rounded-2xl")}>
-        {busy ? <Spinner /> : url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={url} alt={label} className="size-full object-cover" /> : <ImagePlus size={20} className="text-fg3" />}
+        {busy ? <Spinner /> : url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={label} className="size-full object-cover" />
+        ) : <ImagePlus size={20} className="text-fg3" />}
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn btn-sm" onClick={() => ref.current?.click()}><ImagePlus size={14} /> Escolher</button>
@@ -229,13 +232,23 @@ export function RecordForm({
     onSubmit(normalizeValues(fields, values));
   };
 
-  let lastSection = "";
+  // Pré-calcula quais campos abrem cabeçalho de seção (primeiro campo visível de cada seção),
+  // evitando mutação de variável dentro do callback do map.
+  const sectionHeads = new Set<string>();
+  let prevSection = "";
+  for (const f of fields) {
+    if (f.showIf && !f.showIf(values)) continue;
+    if (f.section) {
+      if (f.section !== prevSection) sectionHeads.add(f.key);
+      prevSection = f.section;
+    }
+  }
+
   return (
     <form id={formId} onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3.5">
       {fields.map((f) => {
         if (f.showIf && !f.showIf(values)) return null;
-        const head = f.section && f.section !== lastSection ? f.section : null;
-        if (f.section) lastSection = f.section;
+        const head = f.section && sectionHeads.has(f.key) ? f.section : null;
         return (
           <div key={f.key} data-field={f.key} className={cx(f.span === 2 || f.type === "textarea" || f.type === "multiselect" || f.type === "image" ? "sm:col-span-2" : "")}>
             {head && <div className="sm:col-span-2 text-[11px] font-bold uppercase tracking-wider text-accent mb-2 mt-1.5">{head}</div>}

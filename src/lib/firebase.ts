@@ -86,7 +86,13 @@ export function ensureFirebaseReady(): Promise<void> {
       } catch (e) {
         console.warn("[GBR] Auth anônimo indisponível (habilite Anonymous no Firebase Auth)", e);
       }
-    })();
+    })().catch((e) => {
+      // Uma falha de inicialização não fica em cache: a próxima tentativa reabre o
+      // ciclo e o erro é repassado ao chamador (toast + estado de erro na UI,
+      // em vez de uma tela eternamente em branco).
+      readyPromise = null;
+      throw e;
+    });
   }
   return readyPromise;
 }

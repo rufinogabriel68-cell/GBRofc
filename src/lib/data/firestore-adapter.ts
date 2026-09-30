@@ -83,6 +83,14 @@ export function createFirestoreAdapter(): Adapter {
             handler({ upserts: [], removed: [] });
           },
         );
+      }).catch((e) => {
+        // Sem este catch, uma falha de init deixava `loaded` falso para sempre e a
+        // UI (ex.: aba Empresa) ficava em branco sem nenhum aviso.
+        if (cancelled) return;
+        console.error("[GBR] Firebase init", e);
+        setSync({ error: String(e) });
+        toastError("Falha ao inicializar o Firebase — confira NEXT_PUBLIC_FIREBASE_* no .env e reinicie o servidor.");
+        handler({ upserts: [], removed: [] });
       });
       return () => {
         cancelled = true;
@@ -108,6 +116,10 @@ export function createFirestoreAdapter(): Adapter {
             p.catch(fail);
           }
         }
+      }).catch((e) => {
+        console.error("[GBR] Firebase write init", e);
+        setSync({ error: String(e) });
+        toastError("Falha ao gravar no Firebase — confira o .env (NEXT_PUBLIC_FIREBASE_*) e as Security Rules.");
       });
     },
     async upload(path, file, name) {

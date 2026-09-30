@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { useActive } from "./data/store";
 import type { Data } from "./analytics";
 
@@ -15,17 +15,34 @@ export function useAnalyticsData(): { data: Data; loading: boolean } {
   return { data, loading };
 }
 
-/** Lê um parâmetro da URL sem exigir Suspense (usado por ?new=1 e ?open=). */
+const URL_CHANGE = "gbr:urlchange";
+
+/** Assina mudanças na URL (back/forward e limpezas feitas via `clear`). */
+function subscribeUrl(cb: () => void) {
+  window.addEventListener("popstate", cb);
+  window.addEventListener(URL_CHANGE, cb);
+  return () => {
+    window.removeEventListener("popstate", cb);
+    window.removeEventListener(URL_CHANGE, cb);
+  };
+}
+
+/**
+ * Lê um parâmetro da URL sem exigir Suspense (usado por ?new=1 e ?open=).
+ * A URL é tratada como store externo: disponível já na primeira renderização
+ * no cliente, sem efeitos que fazem setState e com suporte a back/forward.
+ */
 export function useQueryParam(name: string) {
-  const [v, setV] = useState<string | null>(null);
-  useEffect(() => {
-    setV(new URLSearchParams(window.location.search).get(name));
-  }, [name]);
-  const clear = () => {
+  const v = useSyncExternalStore(
+    subscribeUrl,
+    () => new URLSearchParams(window.location.search).get(name),
+    () => null,
+  );
+  const clear = useCallback(() => {
     const u = new URL(window.location.href);
     u.searchParams.delete(name);
     window.history.replaceState(null, "", u.pathname + (u.search || ""));
-    setV(null);
-  };
+    window.dispatchEvent(new Event(URL_CHANGE));
+  }, [name]);
   return [v, clear] as const;
 }
