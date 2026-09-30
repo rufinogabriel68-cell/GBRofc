@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Download, Plus } from "lucide-react";
 import { PageHeader, Segmented, StatusBadge, useMediaQuery } from "@/components/ui";
 import { useUI } from "@/components/shell/ui-context";
@@ -23,6 +23,13 @@ export default function AgendaPage() {
   const mobile = useMediaQuery("(max-width: 767px)");
   const [view, setView] = useState<View>("semana");
   const [cur, setCur] = useState(todayISO());
+  // Hidratação (React #418): título e calendário dependem do dia de hoje, que o
+  // servidor calcula com o relógio do build (UTC) — renderizados só após a montagem.
+  const [ready, setReady] = useState(false);
+  useLayoutEffect(() => {
+    const tick = () => setReady(true);
+    tick();
+  }, []);
   const [isNew, clear] = useQueryParam("new");
   useEffect(() => { if (isNew) { ui.openForm("appointments"); clear(); } }, [isNew]); // eslint-disable-line react-hooks/exhaustive-deps
   // Em telas pequenas, cai da visão "semana" para "dia" (ajuste durante a renderização, sem efeito).
@@ -75,7 +82,7 @@ export default function AgendaPage() {
         actions={<><button className="btn" onClick={exportIcs} title="Exportar para Google/Apple/Outlook Calendar (.ics)"><Download size={15} /> Exportar .ics</button><button className="btn btn-primary" onClick={() => ui.openForm("appointments", null, { date: cur })}><Plus size={16} /> Novo</button></>} />
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex gap-1"><button className="btn btn-icon" aria-label="Anterior" onClick={() => step(-1)}><ChevronLeft size={17} /></button><button className="btn" onClick={() => setCur(todayISO())}>Hoje</button><button className="btn btn-icon" aria-label="Próximo" onClick={() => step(1)}><ChevronRight size={17} /></button></div>
-        <h2 className="font-bold text-lg flex-1 min-w-[160px]">{title}</h2>
+        <h2 className="font-bold text-lg flex-1 min-w-[160px]">{ready ? title : "\u00a0"}</h2>
         <Segmented<View> value={view} onChange={setView} options={[{ id: "dia", label: "Dia" }, ...(mobile ? [] : [{ id: "semana" as View, label: "Semana" }]), { id: "mes", label: "Mês" }]} />
       </div>
 
@@ -96,7 +103,7 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {view === "semana" && (
+      {ready && view === "semana" && (
         <div className="grid grid-cols-7 gap-2">
           {Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)).map((day) => (
             <div key={day} className={cx("card p-2 min-h-[340px] cursor-pointer", day === todayISO() && "border-accent/50")} onClick={() => ui.openForm("appointments", null, { date: day })}>
@@ -107,7 +114,7 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {view === "mes" && (
+      {ready && view === "mes" && (
         <div className="card overflow-hidden">
           <div className="grid grid-cols-7 bg-black/10">{WEEKDAYS.map((w) => <div key={w} className="th text-center !px-1">{w}</div>)}</div>
           <div className="grid grid-cols-7">

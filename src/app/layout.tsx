@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   applicationName: "GBR Gestão",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "GBR Gestão", statusBarStyle: "black-translucent" },
-  icons: { icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }], apple: "/icons/apple-touch-icon.png" },
+  icons: { icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }, { url: "/favicon.ico", sizes: "32x32", type: "image/x-icon" }], apple: "/icons/apple-touch-icon.png" },
   formatDetection: { telephone: false },
 };
 

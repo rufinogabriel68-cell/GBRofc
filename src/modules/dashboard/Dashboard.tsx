@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, CalendarClock, CalendarDays, CheckCircle2, ClipboardList, CreditCard, FileCheck2, FileText, Hourglass, PackageX, Rocket, Sparkles, Target, TrendingUp, UserPlus, Users, Wallet, Wrench, Clock,
 } from "lucide-react";
@@ -25,8 +25,14 @@ export default function Dashboard() {
   const alerts = useMemo(() => computeAlerts({ quotes: data.quotes, orders: data.orders, txns: data.txns, products: data.products, warranties: data.warranties, activities: data.activities, customers: data.customers }), [data]);
   const insights = useMemo(() => computeInsights(data, settings.staleStockDays).slice(0, 4), [data, settings.staleStockDays]);
   const custName = (id: string) => data.customers.find((c) => c.id === id)?.name || "";
-  const now = new Date();
-  const greet = now.getHours() < 12 ? "Bom dia" : now.getHours() < 18 ? "Boa tarde" : "Boa noite";
+  // Hidratação (React #418): o servidor tem o relógio do build (UTC) e o
+  // cliente o relógio real (BRT) — saudação/data só são geradas após a montagem.
+  const [now, setNow] = useState<Date | null>(null);
+  useLayoutEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+  }, []);
+  const greet = now ? (now.getHours() < 12 ? "Bom dia" : now.getHours() < 18 ? "Boa tarde" : "Boa noite") : "";
   const first = (settings.responsible || "").split(" ")[0];
   const empty = !loading && !data.customers.length && !data.services.length && !data.orders.length;
   const growth = d.prevRevenue > 0 ? ((d.revenue - d.prevRevenue) / d.prevRevenue) * 100 : null;
@@ -38,7 +44,7 @@ export default function Dashboard() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-fg2">{WEEKDAYS[now.getDay()]}, {now.getDate()} de {MONTHS[now.getMonth()]}</p>
+          <p className="text-sm text-fg2">{now ? `${WEEKDAYS[now.getDay()]}, ${now.getDate()} de ${MONTHS[now.getMonth()]}` : "\u00a0"}</p>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">{greet}{first ? `, ${first}` : ""} 👋</h1>
           <p className="text-sm text-fg2 mt-0.5">{d.todayAppts.length ? `Você tem ${d.todayAppts.length} atendimento(s) hoje` : "Nenhum atendimento agendado para hoje"}{d.osLate.length ? ` · ${d.osLate.length} OS atrasada(s)` : ""}.</p>
         </div>
@@ -152,7 +158,9 @@ export default function Dashboard() {
           </div>
         </Panel>
       )}
-      <p className="text-[11px] text-fg3 text-center pb-2"><Clock size={11} className="inline mr-1" />Período: {fmtDate(range.start)} → {fmtDate(range.end)} · atualizado {fmtDateTime(new Date().toISOString())}</p>
+      {!loading && (
+        <p className="text-[11px] text-fg3 text-center pb-2"><Clock size={11} className="inline mr-1" />Período: {fmtDate(range.start)} → {fmtDate(range.end)} · atualizado {fmtDateTime(new Date().toISOString())}</p>
+      )}
     </div>
   );
 }
