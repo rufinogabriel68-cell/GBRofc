@@ -21,14 +21,30 @@ const subscribeNone = () => () => {};
 /* ------------------------------------------------------------------ sync */
 export function SyncPill({ compact }: { compact?: boolean }) {
   const s = useSyncStatus();
-  const tone = s.label === "Offline" ? "text-warn border-warn/30 bg-warn/10" : s.label === "Sincronizado" ? "text-ok border-ok/25 bg-ok/10" : "text-info border-info/30 bg-info/10";
-  const Icon = s.label === "Offline" ? AlertTriangle : s.label === "Sincronizado" ? null : Loader2;
+  const hasErr = !!s.error;
+  const bad = s.label === "Offline" || s.label === "Servidor não responde" || hasErr;
+  const tone = s.label === "Sincronizado" && !hasErr ? "text-ok border-ok/25 bg-ok/10" : bad && s.label !== "Sincronizando..." ? "text-warn border-warn/30 bg-warn/10" : "text-info border-info/30 bg-info/10";
+  const Icon = s.label === "Sincronizando..." ? Loader2 : bad ? AlertTriangle : null;
   const backend = s.mode === "firestore" ? "Firebase Firestore" : "Servidor (PostgreSQL)";
-  const title = `${s.label} · ${backend}${s.pending ? ` · ${s.pending} alteração(ões) pendente(s)` : ""}${s.error ? ` · ${s.error}` : ""}`;
+  const title = [
+    `${s.label} · ${backend}`,
+    s.pending ? `${s.pending} alteração(ões) pendente(s) neste dispositivo` : "",
+    s.error ? `erro: ${s.error}` : "",
+    s.stuck && s.pending > 0
+      ? "As alterações estão guardadas neste dispositivo e serão enviadas quando o servidor responder. Causas comuns: conexão instável, bloqueador/VPN travando o Firebase, ou backend sem configurar no Vercel (NEXT_PUBLIC_FIREBASE_* ou DATABASE_URL)."
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <span title={title} role="status" aria-live="polite" className={cx("inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-[11px] font-semibold whitespace-nowrap", tone)}>
       {Icon ? <Icon size={12} className={s.label === "Sincronizando..." ? "animate-spin" : ""} /> : <span className="size-1.5 rounded-full bg-ok animate-pulse" />}
-      {!compact && s.label}
+      {!compact && (
+        <span>
+          {s.label}
+          {s.pending > 0 ? ` (${s.pending})` : ""}
+        </span>
+      )}
     </span>
   );
 }

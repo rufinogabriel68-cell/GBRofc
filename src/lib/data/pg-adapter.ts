@@ -12,6 +12,20 @@ const HEADERS = { "Content-Type": "application/json", "x-company-id": COMPANY_ID
 const OUTBOX_KEY = `gbr:${COMPANY_ID}:outbox`;
 const cacheKey = (c: string) => `gbr:${COMPANY_ID}:cache:${c}`;
 
+/** fetch com teto de 15s: um request pendurado não pode congelar outbox/polling para sempre. */
+const FETCH_TIMEOUT_MS = 15_000;
+async function jfetch(url: string, init?: RequestInit): Promise<Response> {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+const isTimeout = (e: unknown) =>
+  typeof e === "object" && e !== null && (e as { name?: string }).name === "AbortError";
+
 /**
  * Backend PostgreSQL (mesmo modelo de coleções/documentos do Firestore).
  * - leitura incremental (updated_at) com polling único para todas as coleções
@@ -91,7 +105,7 @@ export function createPgAdapter(): Adapter {
     try {
       const cols: Record<string, string | null> = {};
       subs.forEach((_, c) => (cols[c] = since.get(c) ?? null));
-      const res = await fetch("/api/sync", { method: "POST", headers: HEADERS, body: JSON.stringify({ cols }) });
+      const res = await jfetch("/api/sync", { method: "POST", headers: HEADERS, body: JSON.stringify({ cols }) });
       if (!res.ok) {
         const j = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(j?.error || `HTTP ${res.status}`);
@@ -117,7 +131,7 @@ export function createPgAdapter(): Adapter {
       setSync({ online: true, error: null, lastSync: Date.now() });
     } catch (e) {
       const offline = !navigator.onLine || e instanceof TypeError;
-      setSync(offline ? { online: false } : { error: String(e) });
+      setSync(offline ? { online: false } : { error: isTimeout(e) ? "Tempo esgotado aguardando o servidor (15s)" : String(e) });
       // Primeira pintura offline-first: mesmo sem servidor, conclui o carregamento
       // das coleções com lista vazia — a UI renderiza (ex.: aba Empresa) e o status
       // de sincronização mostra o erro, em vez de uma tela eternamente em branco.
@@ -149,7 +163,7 @@ export function createPgAdapter(): Adapter {
     try {
       while (outbox.length) {
         const batch = outbox.slice(0, 100);
-        const res = await fetch("/api/write", {
+        const res = await jfetch("/api/write", {
           method: "POST",
           headers: HEADERS,
           body: JSON.stringify({ ops: batch.map(({ seq: _s, ...o }) => o) }),
@@ -169,7 +183,7 @@ export function createPgAdapter(): Adapter {
       schedule(300);
     } catch (e) {
       const offline = !navigator.onLine || e instanceof TypeError;
-      setSync(offline ? { online: false } : { error: String(e) });
+      setSync(offline ? { online: false } : { error: isTimeout(e) ? "Tempo esgotado aguardando o servidor (15s)" : String(e) });
       if (flushTimer) clearTimeout(flushTimer);
       flushTimer = setTimeout(flush, 5000);
     } finally {
@@ -236,7 +250,7 @@ export function createPgAdapter(): Adapter {
       if (id) await fetch(`/api/files/${id}`, { method: "DELETE" }).catch(() => {});
     },
     async listAll(col) {
-      const res = await fetch("/api/sync", { method: "POST", headers: HEADERS, body: JSON.stringify({ cols: { [col]: null } }) });
+      const res = await jfetch("/api/sync", { method: "POST", headers: HEADERS, body: JSON.stringify({ cols: { [col]: null } }) });
       if (!res.ok) throw new Error("Falha ao ler " + col);
       const j = await res.json();
       return (j.results[col]?.docs ?? []) as Rec[];

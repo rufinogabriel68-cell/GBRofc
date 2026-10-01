@@ -18,7 +18,7 @@ import { toastError } from "../toast";
 import { clean } from "../utils";
 import type { Rec } from "../types";
 import type { Adapter, Op } from "./adapter";
-import { initConnectivity, setSync } from "./sync-status";
+import { initConnectivity, getSync, setSync } from "./sync-status";
 
 /**
  * Backend Firestore.
@@ -32,6 +32,17 @@ export function createFirestoreAdapter(): Adapter {
   setSync({ mode: "firestore" });
   const pendingCols = new Map<string, boolean>();
   const cacheCols = new Map<string, boolean>();
+  // Um erro repetido (várias coleções/escritas) não pode inundar de toasts:
+  // mesma mensagem reaparece no máximo a cada 30s.
+  let lastToast = { text: "", at: 0 };
+  const alerta = (error: string, toastMsg: string) => {
+    setSync({ error });
+    const now = Date.now();
+    if (lastToast.text !== toastMsg || now - lastToast.at > 30_000) {
+      lastToast = { text: toastMsg, at: now };
+      toastError(toastMsg);
+    }
+  };
 
   const refresh = () => {
     let pending = 0;
@@ -68,6 +79,10 @@ export function createFirestoreAdapter(): Adapter {
             pendingCols.set(col, snap.metadata.hasPendingWrites);
             cacheCols.set(col, snap.metadata.fromCache);
             refresh();
+            // Leitura voltou a funcionar → erros de leitura/init não são mais válidos.
+            // (Erros de escrita têm prefixo "Escrita:" e são limpos só por uma escrita OK.)
+            const err = getSync().error;
+            if (err && !err.startsWith("Escrita:")) setSync({ error: null });
             const upserts: Rec[] = [];
             const removed: string[] = [];
             snap.docChanges().forEach((c) => {
@@ -78,8 +93,10 @@ export function createFirestoreAdapter(): Adapter {
           },
           (err) => {
             console.error(`[GBR] Firestore (${col})`, err);
-            setSync({ error: `Firestore: ${err.code || err.message}` });
-            toastError(`Sem permissão/erro ao ler "${col}". Verifique as Security Rules e o Auth anônimo.`);
+            alerta(
+              `Firestore: ${err.code || err.message}`,
+              `Sem permissão/erro ao ler "${col}". Verifique as Security Rules e o Auth anônimo.`,
+            );
             handler({ upserts: [], removed: [] });
           },
         );
@@ -88,8 +105,10 @@ export function createFirestoreAdapter(): Adapter {
         // UI (ex.: aba Empresa) ficava em branco sem nenhum aviso.
         if (cancelled) return;
         console.error("[GBR] Firebase init", e);
-        setSync({ error: String(e) });
-        toastError("Falha ao inicializar o Firebase — confira NEXT_PUBLIC_FIREBASE_* no .env e reinicie o servidor.");
+        alerta(
+          `Firebase init: ${String(e)}`,
+          "Falha ao inicializar o Firebase — confira NEXT_PUBLIC_FIREBASE_* no .env e reinicie o servidor.",
+        );
         handler({ upserts: [], removed: [] });
       });
       return () => {
@@ -103,7 +122,10 @@ export function createFirestoreAdapter(): Adapter {
           const r = docRef(o.col, o.id);
           const fail = (e: unknown) => {
             console.error("[GBR] Firestore write", e);
-            toastError("Não foi possível salvar no Firebase (verifique as regras de segurança).");
+            alerta(
+              "Escrita: não foi possível salvar no Firebase",
+              "Não foi possível salvar no Firebase (verifique a conexão, os bloqueadores e as regras de segurança).",
+            );
           };
           if (o.op === "delete") {
             deleteDoc(r).catch(fail);
@@ -113,13 +135,17 @@ export function createFirestoreAdapter(): Adapter {
             if (o.col === "public_links") data.companyId = COMPANY_ID;
             const p =
               o.merge === false ? setDoc(r, data) : setDoc(r, data, { mergeFields: Object.keys(data) });
-            p.catch(fail);
+            p.then(() => {
+              if (getSync().error?.startsWith("Escrita:")) setSync({ error: null });
+            }).catch(fail);
           }
         }
       }).catch((e) => {
         console.error("[GBR] Firebase write init", e);
-        setSync({ error: String(e) });
-        toastError("Falha ao gravar no Firebase — confira o .env (NEXT_PUBLIC_FIREBASE_*) e as Security Rules.");
+        alerta(
+          `Escrita: ${String(e)}`,
+          "Falha ao gravar no Firebase — confira o .env (NEXT_PUBLIC_FIREBASE_*) e as Security Rules.",
+        );
       });
     },
     async upload(path, file, name) {
