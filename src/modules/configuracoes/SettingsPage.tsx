@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Bell, Blocks, Building2, Cloud, Database, FileText, Hammer, HardDriveDownload, KeyRound, Landmark, Monitor, Package, Palette, Plus, ReceiptText, ScrollText, ShieldCheck, Trash2, Upload, UserCog, Users, Workflow, Zap, CalendarDays, Download, CheckCircle2,
+  Bell, Blocks, Building2, Bug, Cloud, Database, FileText, Hammer, HardDriveDownload, Key, KeyRound, Landmark, Monitor, Package, Palette, Plus, ReceiptText, ScrollText, ShieldCheck, Trash2, Upload, UserCog, Users, Workflow, Zap, CalendarDays, Download, CheckCircle2,
 } from "lucide-react";
 import { CrudView } from "@/components/crud/CrudView";
 import { RecordForm, type Field } from "@/components/crud/RecordForm";
@@ -10,7 +10,7 @@ import { PAY_METHODS, PDF_TEMPLATES } from "@/lib/constants";
 import { COLLECTIONS } from "@/lib/collections";
 import { db } from "@/lib/data/store";
 import { useSyncStatus } from "@/lib/data/sync-status";
-import { firebaseConfig, isFirebaseConfigured } from "@/lib/firebase";
+import { buildFirebaseConfig, buildIsFirebaseConfigured } from "@/lib/firebase";
 import { COMPANY_ID } from "@/lib/session";
 import { useSettings } from "@/lib/settings";
 import { seedDefaults } from "@/lib/seed";
@@ -19,16 +19,18 @@ import { toast } from "@/lib/toast";
 import type { Rec } from "@/lib/types";
 import { download, nowISO, todayISO, toNum } from "@/lib/utils";
 import { getModule } from "../registry";
+import KeysTab from "./KeysTab";
+import LogsTab from "./LogsTab";
 import { VERSION } from "@/components/shell/Chrome";
 import Link from "next/link";
 
-type Tab = "empresa" | "identidade" | "taxas" | "orcamentos" | "os" | "crm" | "notificacoes" | "automacao" | "estoque" | "agenda" | "documentos" | "usuarios" | "permissoes" | "backup" | "integracoes" | "sistema" | "auditoria";
+type Tab = "empresa" | "identidade" | "taxas" | "orcamentos" | "os" | "crm" | "notificacoes" | "automacao" | "estoque" | "agenda" | "documentos" | "usuarios" | "permissoes" | "backup" | "integracoes" | "chaves" | "sistema" | "logs" | "auditoria";
 
 const TABS: { id: Tab; label: string; icon: typeof Building2 }[] = [
   { id: "empresa", label: "Empresa", icon: Building2 }, { id: "identidade", label: "Identidade visual", icon: Palette }, { id: "taxas", label: "Financeiro e taxas", icon: Landmark }, { id: "orcamentos", label: "Orçamentos", icon: ReceiptText },
   { id: "os", label: "OS", icon: Hammer }, { id: "crm", label: "CRM", icon: Users }, { id: "notificacoes", label: "Notificações", icon: Bell }, { id: "automacao", label: "Automação", icon: Zap }, { id: "estoque", label: "Estoque", icon: Package },
   { id: "agenda", label: "Agenda", icon: CalendarDays }, { id: "documentos", label: "Documentos", icon: FileText }, { id: "usuarios", label: "Usuários", icon: UserCog }, { id: "permissoes", label: "Permissões", icon: KeyRound },
-  { id: "backup", label: "Backup", icon: HardDriveDownload }, { id: "integracoes", label: "Integrações", icon: Blocks }, { id: "sistema", label: "Sistema", icon: Monitor }, { id: "auditoria", label: "Auditoria", icon: ScrollText },
+  { id: "backup", label: "Backup", icon: HardDriveDownload }, { id: "integracoes", label: "Integrações", icon: Blocks }, { id: "chaves", label: "Chaves", icon: Key }, { id: "sistema", label: "Sistema", icon: Monitor }, { id: "logs", label: "Logs", icon: Bug }, { id: "auditoria", label: "Auditoria", icon: ScrollText },
 ];
 
 const F = (key: string, label: string, type: Field["type"], extra: Partial<Field> = {}): Field => ({ key, label, type, ...extra });
@@ -85,6 +87,8 @@ function Section({ tab }: { tab: Tab }) {
     case "auditoria": return <CrudView config={getModule("audit_logs")} />;
     case "backup": return <Backup />;
     case "integracoes": return <Integrations />;
+    case "chaves": return <KeysTab />;
+    case "logs": return <LogsTab />;
     case "sistema": return <System />;
   }
   return null;
@@ -190,10 +194,10 @@ function Integrations() {
   const off = <Badge>não configurado</Badge>;
   return (
     <div className="grid md:grid-cols-2 gap-3">
-      <IntegrationItem icon={Cloud} title="Firebase (Firestore + Storage)" status={isFirebaseConfigured ? <Badge tone="ok">● ativo</Badge> : <Badge tone="warn">não configurado</Badge>}>
-        {isFirebaseConfigured ? <>Projeto <b>{firebaseConfig.projectId}</b>. Dados em <code className="kbd">companies/{COMPANY_ID}/…</code>, arquivos no Storage, cache offline persistente. App Check: {process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY ? "ativo" : "defina NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY"}.</> : <>Rodando no <b>modo servidor (PostgreSQL)</b> com o mesmo modelo de coleções. Para ativar o Firebase defina <code className="kbd">NEXT_PUBLIC_FIREBASE_*</code> (ver .env.example), publique <code className="kbd">firebase/firestore.rules</code> e <code className="kbd">storage.rules</code>. Estado atual: {s.mode}.</>}
+      <IntegrationItem icon={Cloud} title="Firebase (Firestore + Storage)" status={buildIsFirebaseConfigured ? <Badge tone="ok">● ativo</Badge> : <Badge tone="warn">não configurado</Badge>}>
+        {buildIsFirebaseConfigured ? <>Projeto <b>{buildFirebaseConfig.projectId}</b>. Dados em <code className="kbd">companies/{COMPANY_ID}/…</code>, arquivos no Storage, cache offline persistente. App Check: {process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY ? "ativo" : "defina NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY"}.</> : <>Rodando no <b>modo servidor (PostgreSQL)</b> com o mesmo modelo de coleções. Para ativar o Firebase defina <code className="kbd">NEXT_PUBLIC_FIREBASE_*</code> (ver .env.example), publique <code className="kbd">firebase/firestore.rules</code> e <code className="kbd">storage.rules</code>. Estado atual: {s.mode}.</>}
       </IntegrationItem>
-      <IntegrationItem icon={ShieldCheck} title="App Check / Security Rules" status={<Badge tone={isFirebaseConfigured ? "info" : "neutral"}>{isFirebaseConfigured ? "regras no projeto" : "preparado"}</Badge>}>Regras validam dados, isolam por empresa e liberam links públicos apenas por token. Autenticação anônima hoje; Firebase Auth completo depois.</IntegrationItem>
+      <IntegrationItem icon={ShieldCheck} title="App Check / Security Rules" status={<Badge tone={buildIsFirebaseConfigured ? "info" : "neutral"}>{buildIsFirebaseConfigured ? "regras no projeto" : "preparado"}</Badge>}>Regras validam dados, isolam por empresa e liberam links públicos apenas por token. Autenticação anônima hoje; Firebase Auth completo depois.</IntegrationItem>
       <IntegrationItem icon={Workflow} title="WhatsApp Business API" status={off}>Interface <code className="kbd">WhatsAppProvider</code> pronta. Hoje: links wa.me com mensagem do modelo.</IntegrationItem>
       <IntegrationItem icon={CalendarDays} title="Google / Apple / Outlook Calendar" status={<Badge tone="info">.ics disponível</Badge>}>Exportação .ics funcional na Agenda. Sincronização bidirecional: futura (OAuth em Cloud Function).</IntegrationItem>
       <IntegrationItem icon={Landmark} title="Open Finance / bancos" status={off}>Conciliação por CSV disponível. Conectores automáticos entram pelo mesmo fluxo em `financial_transactions`.</IntegrationItem>

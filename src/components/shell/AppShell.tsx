@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { cx } from "@/lib/utils";
+import { initLogs } from "@/lib/logs";
 import { useSettings } from "@/lib/settings";
 import { ConfirmHost, ToastHost } from "../ui";
 import { CommandCenter } from "./CommandCenter";
@@ -75,8 +76,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [watch, setWatch] = useState(false);
 
   useEffect(() => {
+    initLogs();
     const t = setTimeout(() => setWatch(true), 1500);
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") navigator.serviceWorker.register("/sw.js").catch((e) => console.error("[GBR] service worker", e));
     return () => clearTimeout(t);
   }, []);
   const setCollapsed = (v: boolean) => {

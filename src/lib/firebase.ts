@@ -18,8 +18,32 @@ import {
 } from "firebase/firestore";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+import { fbEnv, getBackendOverride } from "./runtime-config";
 
 export const firebaseConfig = {
+  apiKey: fbEnv("NEXT_PUBLIC_FIREBASE_API_KEY"),
+  authDomain: fbEnv("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+  projectId: fbEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID"),
+  storageBucket: fbEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: fbEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: fbEnv("NEXT_PUBLIC_FIREBASE_APP_ID"),
+  measurementId: fbEnv("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID"),
+};
+
+// Modo de dados: variável de build, com possibilidade de override colado na
+// aba "Chaves" do sistema (localStorage + reload — sistema-teste, sem deploy).
+const backendOverride = getBackendOverride();
+const hasFirebaseConfig = Boolean(firebaseConfig.projectId && firebaseConfig.apiKey);
+export const isFirebaseConfigured =
+  backendOverride === "postgres"
+    ? false
+    : backendOverride === "firebase"
+      ? hasFirebaseConfig
+      : hasFirebaseConfig && process.env.NEXT_PUBLIC_DATA_BACKEND !== "postgres";
+
+/** Valores APENAS do build (sem overrides) — usados em texto renderizado no
+ * primeiro paint para bater exatamente com o HTML gerado no servidor. */
+export const buildFirebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -28,9 +52,8 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
-
-export const isFirebaseConfigured = Boolean(
-  firebaseConfig.projectId && firebaseConfig.apiKey && process.env.NEXT_PUBLIC_DATA_BACKEND !== "postgres",
+export const buildIsFirebaseConfigured = Boolean(
+  buildFirebaseConfig.projectId && buildFirebaseConfig.apiKey && process.env.NEXT_PUBLIC_DATA_BACKEND !== "postgres",
 );
 
 let app: FirebaseApp | null = null;
@@ -42,7 +65,7 @@ export function getFirebase() {
   if (!isFirebaseConfigured) throw new Error("Firebase não configurado");
   if (!app) {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY;
+    const siteKey = fbEnv("NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY");
     if (typeof window !== "undefined" && siteKey) {
       try {
         if (process.env.NEXT_PUBLIC_APPCHECK_DEBUG === "true") {
@@ -78,7 +101,7 @@ export function ensureFirebaseReady(): Promise<void> {
   if (!readyPromise) {
     readyPromise = (async () => {
       const { app } = getFirebase();
-      if (process.env.NEXT_PUBLIC_FIREBASE_ANON_AUTH === "false") return;
+      if (fbEnv("NEXT_PUBLIC_FIREBASE_ANON_AUTH") === "false") return;
       try {
         const auth = getAuth(app);
         await auth.authStateReady();

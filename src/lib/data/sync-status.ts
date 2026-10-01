@@ -1,5 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
+import { addLog } from "../logs";
 
 export type SyncState = {
   online: boolean;
@@ -55,6 +56,8 @@ export function setSync(p: Partial<SyncState>) {
     }
   }
   if (JSON.stringify(next) === JSON.stringify(state)) return;
+  if (next.error && next.error !== state.error) addLog("error", "sync", next.error);
+  if (!next.error && state.error) addLog("info", "sync", "erro de sincronização resolvido");
   state = next;
   listeners.forEach((l) => l());
 }
